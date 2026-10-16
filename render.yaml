@@ -1,8 +1,0 @@
--type: worker
-  name: spotify-avatar-bot
-  env: python
-  region: oregon
-  plan: free
-  buildCommand: "pip install -r requirements.txt"
-  startCommand: "python spotify_discord_avatar.py"
-  autoDeploy: true

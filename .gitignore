@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+.spotify_cache
+data/
+__pycache__/
+.pytest_cache/
+.venv/
+.tmp/
