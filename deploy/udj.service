@@ -2,23 +2,31 @@
 Description=UDJ Spotify-to-Discord presence bot
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
-User=seth
-Group=seth
+User=udj
+Group=udj
 WorkingDirectory=/opt/udj
 EnvironmentFile=/etc/udj/udj.env
 Environment=UDJ_DATA_DIR=/var/lib/udj
 ExecStart=/opt/udj/.venv/bin/python /opt/udj/spotify_discord_avatar.py
 Restart=on-failure
-RestartSec=10
+RestartSec=15
 UMask=0077
 StateDirectory=udj
 StateDirectoryMode=0700
 NoNewPrivileges=true
+PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
 
 [Install]
 WantedBy=multi-user.target
+
