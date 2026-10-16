@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import sqlite3
+import stat
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -15,11 +16,21 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 SCOPE = "user-read-currently-playing"
+
+
+class TokenStoreError(RuntimeError):
+    """Encrypted token storage is corrupt, unreadable, or uses the wrong key."""
+
+    def __init__(self):
+        super().__init__(
+            "UDJ cannot read its encrypted Spotify token database; check the "
+            "encryption key and file permissions, or restore a matching backup"
+        )
 
 
 class TokenStore:
@@ -27,14 +38,25 @@ class TokenStore:
 
     def __init__(self, path: str | Path, key: str):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.name == "posix":
+            # The directory is the security boundary for SQLite's journal and
+            # temporary files as well as the encrypted database itself.
+            mode = stat.S_IMODE(self.path.parent.stat().st_mode)
+            if mode & 0o077:
+                raise PermissionError(
+                    "UDJ data directory must be private (owner-only); chmod it to 700"
+                )
         self.fernet = Fernet(key.encode("ascii"))
         self._lock = threading.RLock()
-        with self._connect() as db:
-            db.execute(
-                "CREATE TABLE IF NOT EXISTS spotify_tokens "
-                "(id INTEGER PRIMARY KEY CHECK(id = 1), payload BLOB NOT NULL)"
-            )
+        try:
+            with self._connect() as db:
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS spotify_tokens "
+                    "(id INTEGER PRIMARY KEY CHECK(id = 1), payload BLOB NOT NULL)"
+                )
+        except sqlite3.DatabaseError:
+            raise TokenStoreError from None
         # Restrict the database file on POSIX. On Windows, access is governed by
         # the parent directory's ACL; chmod is best-effort and not a substitute.
         try:
@@ -59,11 +81,14 @@ class TokenStore:
             pass
 
     def load(self) -> dict | None:
-        with self._lock, self._connect() as db:
-            row = db.execute("SELECT payload FROM spotify_tokens WHERE id = 1").fetchone()
-        if row is None:
-            return None
-        return json.loads(self.fernet.decrypt(row[0]).decode("utf-8"))
+        try:
+            with self._lock, self._connect() as db:
+                row = db.execute("SELECT payload FROM spotify_tokens WHERE id = 1").fetchone()
+            if row is None:
+                return None
+            return json.loads(self.fernet.decrypt(row[0]).decode("utf-8"))
+        except (sqlite3.DatabaseError, InvalidToken, UnicodeDecodeError, json.JSONDecodeError):
+            raise TokenStoreError from None
 
     def clear(self) -> None:
         with self._lock, self._connect() as db:
@@ -131,11 +156,11 @@ class SpotifyAuth:
         token["expires_at"] = int(time.time()) + int(token.get("expires_in", 3600))
         self.store.save(token)
 
-    def access_token(self) -> str | None:
+    def access_token(self, *, force_refresh: bool = False) -> str | None:
         token = self.store.load()
         if not token:
             return None
-        if token.get("expires_at", 0) > time.time() + 60:
+        if not force_refresh and token.get("expires_at", 0) > time.time() + 60:
             return token.get("access_token")
 
         refresh_token = token.get("refresh_token")
@@ -157,7 +182,7 @@ class SpotifyAuth:
                 error = response.json().get("error")
             except (ValueError, AttributeError):
                 error = None
-            if response.status_code == 401 or error == "invalid_grant":
+            if error == "invalid_grant":
                 self.store.clear()
                 return None
             response.raise_for_status()
@@ -228,4 +253,5 @@ def run_local_authorization(auth: SpotifyAuth, timeout: int = 600) -> None:
         raise TimeoutError("Spotify authorization callback did not arrive in time")
     if result["error"]:
         raise RuntimeError(result["error"])
+
 
