@@ -1,0 +1,5 @@
+# Local credentials and Spotify OAuth cache
+.env
+.env.*
+!.env.example
+.spotify_cache
