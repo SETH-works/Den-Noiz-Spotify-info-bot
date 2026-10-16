@@ -97,7 +97,12 @@ class SpotifyAuth:
             return None
         response = requests.post(TOKEN, data={"client_id": self.client_id, "grant_type": "refresh_token", "refresh_token": refresh}, timeout=15)
         if response.status_code >= 400:
-            self.store.clear()
+            try:
+                error = response.json().get("error")
+            except ValueError:
+                error = None
+            if response.status_code == 401 or error == "invalid_grant":
+                self.store.clear()
             return None
         updated = response.json()
         updated["refresh_token"] = updated.get("refresh_token") or refresh

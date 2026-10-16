@@ -75,3 +75,12 @@ def test_expired_access_token_is_refreshed_and_rotated(auth):
     assert post.call_args.kwargs["data"]["grant_type"] == "refresh_token"
     assert auth.store.load()["refresh_token"] == "new-refresh"
 
+
+def test_temporary_refresh_failure_keeps_saved_refresh_token(auth):
+    auth.store.save({"access_token": "expired", "refresh_token": "keep-refresh", "expires_at": 0})
+    response = Mock()
+    response.status_code = 503
+    with patch("auth.requests.post", return_value=response):
+        assert auth.access_token() is None
+    assert auth.store.load()["refresh_token"] == "keep-refresh"
+
