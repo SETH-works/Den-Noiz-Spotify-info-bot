@@ -1,4 +1,8 @@
 discord.py==2.2.2
-requests
-spotipy
-python-dotenv
+Flask>=3.0,<4
+cryptography>=42,<47
+requests>=2.31,<3
+python-dotenv>=1.0,<2
+pytest>=8,<9
+waitress>=3,<4
+

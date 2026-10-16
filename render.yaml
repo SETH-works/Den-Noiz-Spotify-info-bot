@@ -1,8 +1,30 @@
--type: worker
-  name: spotify-avatar-bot
-  env: python
-  region: oregon
-  plan: free
-  buildCommand: "pip install -r requirements.txt"
-  startCommand: "python spotify_discord_avatar.py"
-  autoDeploy: true
+services:
+  - type: web
+    name: udj
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python spotify_discord_avatar.py
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: udj-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: UDJ_ADMIN_USER
+        sync: false
+      - key: UDJ_ADMIN_PASSWORD
+        sync: false
+      - key: UDJ_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: UDJ_DATA_DIR
+        value: /var/data
+
