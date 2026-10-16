@@ -37,7 +37,7 @@ Install the Python requirements and prepare the persistent data directory before
 3. Open the printed Spotify authorization URL in your PC browser. Spotify returns to `127.0.0.1:8888`, and SSH forwards the callback to the temporary server listener. The listener closes when it completes.
 4. Close the SSH tunnel after setup finishes.
 
-The local callback state and PKCE verifier exist only in setup process memory. The resulting token response is Fernet-encrypted in SQLite under `UDJ_DATA_DIR`; the database persists through process restarts. Each successful access-token refresh is saved, including a replacement refresh token if Spotify returns one. The app does not assign a local refresh-token expiration date; it responds to Spotify's token endpoint, clearing invalid credentials when Spotify returns `invalid_grant`.
+The local callback state and PKCE verifier exist only in setup process memory. The resulting token response is Fernet-encrypted in SQLite under `UDJ_DATA_DIR`; the database persists through process restarts. Each successful access-token refresh is saved, including a replacement refresh token if Spotify returns one. [Spotify documents a six-month lifetime](https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens) for refresh tokens issued to Developer Dashboard apps, measured from user authorization; refreshing does not extend it. That is Spotify's provider policy, not a duration specified by OAuth generally. UDJ does not add its own expiration timer: it handles the provider's `invalid_grant` response by clearing unusable tokens, after which run setup again to authorize.
 
 To remove UDJ's local token record, run `python spotify_auth_setup.py --disconnect` with the same environment and data directory. To revoke Spotify's grant as well, remove UDJ in your Spotify account's app access settings.
 
@@ -54,3 +54,4 @@ Install test dependencies with `python -m pip install -r requirements-dev.txt`, 
 ## Credential history
 
 The previously public Git history contains an old `.spotify_cache` with Spotify token values. Removing it from the current tree does not erase historical copies. Treat those values as exposed. The history cleanup remains separate and requires separately approved history rewriting and force-updating.
+
